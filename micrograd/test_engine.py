@@ -1,5 +1,5 @@
 from math import exp
-from value import Value
+from engine import Value
 
 
 ##################### Test Single Operations #############################
@@ -124,3 +124,6 @@ t_loss = -torch.log(t_probs[3])
 t_loss.backward()
 
 torch_grads = t_logits.grad.tolist()
+
+for i, (g1, g2) in enumerate(zip(my_grads, torch_grads)):
+    print(i, g1, g2, abs(g1 - g2))
