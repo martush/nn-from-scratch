@@ -106,14 +106,14 @@ class Value:
 
         out._backward = _backward
         return out
-        
+
     def relu(self):
 
         x = self.data if self.data > 0 else 0
         out = Value(x, (self, ), 'relu')
 
         def _backward():
-            gradient_addon = 1 if x > 0 else 0
+            gradient_addon = 1 if self.data > 0 else 0
             self.grad += gradient_addon * out.grad
 
         out._backward = _backward

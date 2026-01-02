@@ -1,5 +1,2 @@
-__version__ = "0.0.5"
+__version__ = "0.1.0"
 __author__ = 'Martina Ivanova'
-
-from micrograd.engine import Value
-from micrograd.nn import MLP

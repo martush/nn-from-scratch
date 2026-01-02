@@ -1,171 +1,148 @@
-import random
 import math
-import matplotlib.pyplot as plt
+import random
 import numpy as np
+import matplotlib.pyplot as plt
 
 from micrograd.engine import Value
 from micrograd.nn import MLP
-from micrograd.visualisation import draw_nn
 
+# Data - from sklearn
+from sklearn.datasets import make_moons, make_blobs
 
+X, y = make_moons(n_samples=100, noise=0.1)
 
-def make_moons(n_samples=100, noise=0.1):
-    """
-    Using the sklearn datasets.
-    This generates two interleaving half circles (moons) which creates a non-linear
-    classification problem:
-     - two curved clusters in 2D
-     - each observation has coordinates (x,y) and a label (-1, 1)
-     - plus some noise 
-    
-    Example visualisations here: https://scikit-learn.org/0.15/modules/generated/sklearn.datasets.make_moons.html 
+y = y*2 - 1 # make y be -1 or 1
 
-    The moons are created so that they intertwine - making it impossible
-    to separate them with a straight line
-    """
-    data = []
-    half = n // 2
+# visualize in 2D
+plt.figure(figsize=(5,5))
+plt.scatter(X[:,0], X[:,1], c=y, s=20, cmap='jet')
 
-    for i in range(half):
-        a = math.pi * i / half
+# Generate dataset
+data = make_moons(200)
 
-        # upper moon
-        x1 = math.cos(a) + random.uniform(-noise, noise)
-        y1 = math.sin(a) + random.uniform(-noise, noise)
-        data.append(([x1, y1], 1))
+# initialize a model 
+model = MLP(2, [16, 16, 1]) # 2-layer neural network
+print(model)
+print("number of parameters", len(model.parameters()))
 
-        # lower moon
-        x2 = 1 - math.cos(a) + random.uniform(-noise, noise)
-        y2 = 0.5 - math.sin(a) + random.uniform(-noise, noise)
-        data.append(([x2, y2], -1))
+X_list = X.tolist()
+Y_list = y.tolist()
 
-    return data
+xs = [p[0] for p in X_list]
+ys = [p[1] for p in X_list]
+colors = ['red' if y == 1 else 'blue' for y in Y_list]
 
-
-def visualise_moons(data, model=None, filename='moons_plot.png'):
-    """
-    Plot the moons dataset and decision boundary using matplotlib.
-    """
-    
-    # Separate data by class
-    class_1 = [x for x, y in data if y == 1]
-    class_minus_1 = [x for x, y in data if y == -1]
-    
-    # Plot data points
-    plt.figure(figsize=(10, 6))
-    
-    if class_1:
-        xs, ys = zip(*class_1)
-        plt.scatter(xs, ys, c='blue', label='Class +1 (upper moon)', s=50, alpha=0.7)
-    
-    if class_minus_1:
-        xs, ys = zip(*class_minus_1)
-        plt.scatter(xs, ys, c='green', label='Class -1 (lower moon)', s=50, alpha=0.7)
-    
-    # Plot decision boundary after fitting the model
-    if model:
-        # Create a mesh grid
-        x_min = min([x[0] for x, _ in data]) - 0.5
-        x_max = max([x[0] for x, _ in data]) + 0.5
-        y_min = min([x[1] for x, _ in data]) - 0.5
-        y_max = max([x[1] for x, _ in data]) + 0.5
-        
-        xx, yy = np.meshgrid(np.linspace(x_min, x_max, 200),
-                             np.linspace(y_min, y_max, 200))
-        
-        # Get predictions for each point in the mesh
-        Z = np.zeros_like(xx)
-        for i in range(xx.shape[0]):
-            for j in range(xx.shape[1]):
-                x_val = [Value(xx[i, j]), Value(yy[i, j])]
-                Z[i, j] = model(x_val).data
-        
-        # Plot decision boundary and regions
-        plt.contourf(xx, yy, Z, levels=[-10, 0, 10], colors=['#ffcccc', '#ccccff'], alpha=0.3)
-        plt.contour(xx, yy, Z, levels=[0], colors='black', linewidths=2)
-    
-    plt.xlabel('X')
-    plt.ylabel('Y')
-    plt.title('Moons Dataset' + (' with Decision Boundary' if model else ''))
-    plt.legend()
-    plt.grid(True, alpha=0.3)
-    plt.savefig(filename, dpi=150, bbox_inches='tight')
-    print(f"Plot saved as '{filename}'")
-    plt.show()
-
-
-# 1. Generate dataset
-data = make_moons(n_samples=100)
-
-# 2. Visualize the dataset
-visualise_moons(data)
-
-# 3. Create NN structure: 2 inputs, 2 hidden layers x 16 neurons each, 1 output
+# Create NN architecture
 model = MLP(2, [16, 16, 1])
 print(f"Number of parameters: {len(model.parameters())}")
+# 337
 
 # Training
-def sign(x):
-    '''Needed to calculate accuracy below'''
-    return 1 if x > 0 else -1
+learning_rate = 0.05
+steps = 100
 
-xs = [p for p, y in data]
-ys = [y for p, y in data]
+for step in range(steps):
+    # forward
+    ypred = [model(xi) for xi in X_list]
+    # Use mean loss (rather than MSE used previously)
+    # Squared errors plus tanh (which was also used in initial run) produce flat gradients
+    loss = sum((yout - ygt)**2 for ygt, yout in zip(Y_list, ypred)) / len(Y_list)
 
 
-for k in range(100):
-    # forward pass
-    ypred = [model(xi) for xi in xs]
-    loss = sum((yout - ygt)**2 for ygt, yout in zip(ys, ypred))
-    
-    # Count correct predictions
-    correct = 0
-    correct = sum(1 for ygt, yout in zip(y, ypred)
-                    if sign(yout.data) == ygt
-                  )
-
-    accuracy = correct / len(data) * 100
-    
-    # Backward pass
+    # backward
     for p in model.parameters():
         p.grad = 0.0
     loss.backward()
-    
-    # Update
-    learning_rate = 0.01
+
+    # update
     for p in model.parameters():
-        p.data -= learning_rate * p.grad
-    
-    if k % 10 == 0:
-        print(f"Epoch {k:3d} | Loss: {loss.data:6.4f} | Accuracy: {accuracy:5.1f}%")
+        p.data += -learning_rate * p.grad
 
-# Final evaluation
-print("\n=== Final Evaluation ===")
-correct = 0
+    # accuracy
+    correct = sum(
+        1 for ygt, yout in zip(Y_list, ypred)
+        if (yout.data > 0) == (ygt == 1)
+    )
+    accuracy = correct / len(Y_list)
 
-for x, y in data:
-    x = [Value(xi) for xi in x]
-    y_pred = model(x)
-    if (y_pred.data > 0 and y == 1) or (y_pred.data < 0 and y == -1):
-        correct += 1
+    # Print stats every 20 steps
+    if step % 20 == 0:
+        print(f"step {step:3d} | loss {loss.data:.4f} | acc {accuracy:.2f}")
 
-final_accuracy = correct / len(data) * 100
-print(f"Final Accuracy: {final_accuracy:.1f}%")
+# ! Note initial run of this was wrong - it produces loss of 400 each step and accuracy of 0.5 consistently
+# Upon investigating, main issue was the tanh activation which squishes the result (and to a smaller extent the MSE activation)
+# This was fixed by adding an option to the neuron to not add an activation function and changing loss f to mean loss
 
-# Test on specific points
-print("\n=== Testing on sample points ===")
-test_points = [
-    ([0.5, 0.5], 1, "upper moon"),
-    ([1.5, -0.5], -1, "lower moon"),
-    ([0.0, 0.0], 1, "upper moon edge"),
-    ([1.0, 0.5], -1, "lower moon edge"),
+
+# step   0 | loss 1.2299 | acc 0.55
+# step  20 | loss 0.2351 | acc 0.95
+# step  40 | loss 0.1356 | acc 0.97
+# step  60 | loss 0.0973 | acc 0.98
+# step  80 | loss 0.0771 | acc 0.99
+# step 100 | loss 0.0639 | acc 0.99
+# step 120 | loss 0.0543 | acc 0.99
+# step 140 | loss 0.0470 | acc 0.99
+# step 160 | loss 0.0412 | acc 1.00
+# step 180 | loss 0.0365 | acc 1.00
+
+
+# Visualisations
+
+# initial data
+plt.figure(figsize=(5,5))
+plt.scatter(X[:, 0], X[:, 1], c=y, cmap='coolwarm', s=20)
+plt.show()
+
+# predictions
+pred_colors = [
+    'red' if model(xi).data > 0 else 'blue'
+    for xi in X_list
 ]
 
-for x, expected, description in test_points:
-    x_val = [Value(xi) for xi in x]
-    y_pred = model(x_val)
-    predicted_class = 1 if y_pred.data > 0 else -1
-    status = "✓" if predicted_class == expected else "✗"
-    print(f"{status} Point ({x[0]:.1f}, {x[1]:.1f}) [{description}]: "
-          f"Predicted {predicted_class:+d}, Expected {expected:+d} "
-          f"(raw: {y_pred.data:+.2f})")
+plt.figure(figsize=(6, 5))
+plt.scatter(X[:, 0], X[:, 1], c=pred_colors, s=30)
+plt.title("Model Predictions")
+plt.show()
+
+
+# # decision boundary
+# h = 0.02
+# x_min, x_max = min(xs) - 1, max(xs) + 1
+# y_min, y_max = min(ys) - 1, max(ys) + 1
+
+# xx, yy = np.meshgrid(
+#     np.arange(x_min, x_max, h),
+#     np.arange(y_min, y_max, h)
+# )
+
+# Z = []
+# for x, y in zip(xx.ravel(), yy.ravel()):
+#     Z.append(model([x, y]).data)
+
+# Z = np.array(Z).reshape(xx.shape)
+
+# plt.figure(figsize=(6, 5))
+# plt.contourf(xx, yy, Z > 0, alpha=0.3, cmap='coolwarm')
+# plt.scatter(xs, ys, c=colors, s=30)
+# plt.title("Decision Boundary")
+# plt.show()
+
+# visualize decision boundary
+
+h = 0.25
+x_min, x_max = X[:, 0].min() - 1, X[:, 0].max() + 1
+y_min, y_max = X[:, 1].min() - 1, X[:, 1].max() + 1
+xx, yy = np.meshgrid(np.arange(x_min, x_max, h),
+                     np.arange(y_min, y_max, h))
+Xmesh = np.c_[xx.ravel(), yy.ravel()]
+inputs = [list(map(Value, xrow)) for xrow in Xmesh]
+scores = list(map(model, inputs))
+Z = np.array([s.data > 0 for s in scores])
+Z = Z.reshape(xx.shape)
+
+fig = plt.figure()
+plt.contourf(xx, yy, Z, cmap=plt.cm.Spectral, alpha=0.8)
+plt.scatter(X[:, 0], X[:, 1], c=y, s=40, cmap=plt.cm.Spectral)
+plt.xlim(xx.min(), xx.max())
+plt.ylim(yy.min(), yy.max())
+plt.show()

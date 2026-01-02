@@ -1,18 +1,24 @@
 # nn-from-scratch
-A neural network library built from first principles, including automatic differentiation, neural layers, optimizers, and experiments on synthetic datasets.
+A minimal neural network library built from first principles, implementing automatic differentiation, neural layers, and training loops without relying on deep learning frameworks.
 
-The code does not use PyTorch/TensorFlow (PyTorch is only used to verify gradient calculations in test_engine.py)
+Framework-free: PyTorch/TensorFlow are not used for training.
+PyTorch is only used in test_engine.py to verify gradient correctness.
 
-# Neural Network from Scratch
-
-A minimal neural network library built from first principles, implementing automatic differentiation and backpropagation without any ML frameworks.
+This repository is a learning-focused implementation of a neural network stack:
+- scalar-based autograd engine
+- multi-layer perceptrons (MLPs)
+- gradient descent training
+- visualization of both computation graphs and network structure
+- experiments on synthetic datasets
 
 ## Features
 
-- ✅ **Autograd Engine**: Automatic differentiation with dynamic computation graphs
-- ✅ **Neural Network Components**: Neurons, Layers, and MLP
-- ✅ **Training**: Backpropagation with gradient descent
-- ✅ **Tested**: Gradient checking against numerical differentiation
+- **Autograd Engine**: Dynamic computation graph (Value)
+- **Neural Network Components**: Neurons, Layers, and Multi-Layer Perceptrons (MLP)
+- **Training**: Backpropagation with gradient descent
+- **Visualisation**: Graphical representation of both the computation graph and neural networks
+- **Tested**: Gradient checking against numerical differentiation / PyTorch
+
 
 ## Quick Start
 ```python
@@ -30,29 +36,37 @@ output = model(x)
 # Backward pass
 output.backward()
 
-# All gradients computed automatically!
+# Example gradient calculated for the first param
 print(model.parameters()[0].grad)
 
 # Graph visualisation of NN
 draw_nn(model).render('graph', view=True)
-
 ```
 
-## Example: Binary Classification
+## Examples
 
-Train a neural network to separate two classes (moons dataset):
-```bash
+| File                            | Description                                                                                          |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `basic_usage.py`                | Minimal example: simple computation `L = (a+b)*c`, gradient backpropagation, and graph visualization |
+| `binary_classification.py`      | Binary classification with `make_moons` dataset. Includes decision boundary visualization            |
+| `xor_classifier.py`             | Synthetic XOR dataset (+1/-1 outputs), small MLP example                                             |
+| `multi_class_classification.py` | Multi-class classification with softmax + NLL loss, synthetic dataset                                |
+
+
+### Example: Binary Classification (Moons)
+```python
+# run from root folder (nn-from-scratch)
 python examples.binary_classification
 ```
-
-Output:
-```
+### Output snippet
 Number of parameters: 337
-Epoch 0, Loss: 100.234
-Epoch 10, Loss: 45.123
+
+step   0 | loss 1.2299 | acc 0.55
+step  20 | loss 0.2351 | acc 0.95
+step  40 | loss 0.1356 | acc 0.97
 ...
-Epoch 90, Loss: 2.456
-```
+step 180 | loss 0.0365 | acc 1.00
+
 
 ## Project Structure
 ```
@@ -74,26 +88,37 @@ nn-from-scratch/
 
 ### 1. Autograd Engine (`engine.py`)
 
-The `Value` class wraps numbers and tracks operations:
+Value wraps a number and tracks operations to compute gradients via backpropagation
+The Value class tracks:
+- scalar data
+- gradient
+- parents in the computation graph (aptly called children in the class :) )
+- backward function - which computes gradients using a directed graph (from last output backwards)
+
 ```python
 a = Value(2.0)
 b = Value(3.0)
-c = a * b + a ** 2    # Builds computation graph
-c.backward()          # Computes gradients via backprop
+# build computation graph
+c = a * b + a ** 2
+# compute gradients via backprop
+c.backward()          
 
 print(a.grad)  # dc/da = 7.0
 print(b.grad)  # dc/db = 2.0
 ```
 
-Supports: `+, -, *, /, **, tanh(), relu(), exp(), log()`
+Supports: `+, -, *, /, **, tanh(), relu(), sigmoid(), exp(), log()`
 
 ### 2. Neural Networks (`nn.py`)
 
-Simple object-oriented API:
+Simple structure for a NN:
 
-- **Neuron**: Single neuron with weights and bias
+- **Neuron**: Single neuron with weights, bias, and optional activation
 - **Layer**: Collection of neurons
 - **MLP**: Multi-layer perceptron (stack of layers)
+
+Supports any selection of a number of layers and layer width (number of neurons in a layer). 
+Hidden layers use non-linear activations (default added is tanh). Output layer is linear (logits).
 
 ### 3. Training Loop
 ```python
@@ -101,7 +126,8 @@ Simple object-oriented API:
 loss = sum((model(x) - y)**2 for x, y in data)
 
 # 2. Backward pass
-model.zero_grad()
+for p in model.parameters():
+    p.grad = 0.0
 loss.backward()
 
 # 3. Update weights
@@ -111,12 +137,17 @@ for p in model.parameters():
 
 ### 4. Visualisation
 ```python
+# Neural Network Structure
 draw_nn(model).render('graph', view=True)
+
+# Computational Graph
+draw_nn(loss).render('graph', view=True)
 ```
 
 ## Limitations
 
 This is a learning project, not production code:
+- Scalar based (slow)
 - No GPU support
 - No advanced optimizers (Adam, RMSprop)
 - No convolutions or recurrent layers
@@ -136,4 +167,4 @@ For real work, please use a real library - PyTorch, TensorFlow, or JAX!
 
 ## License
 
-MIT
+GPL-3.0
